@@ -127,6 +127,71 @@ python -c "from plugin import portfolio_status; print(portfolio_status())"
 帳戶狀態
 ```
 
+---
+
+## OpenClaw 安裝與使用（精簡版）
+
+### 作為 OpenClaw Skill
+
+1. **Clone 到 OpenClaw**：
+```bash
+cd ~/.openclaw/skills
+git clone https://github.com/mactone/openclaw-wheel.git
+```
+
+2. **建立虛擬環境**（在 skill 目錄下）：
+```bash
+cd ~/.openclaw/skills/openclaw-wheel
+python3 -m venv venv
+source venv/bin/activate
+pip install ib_async pandas pytz yfinance flask
+```
+
+3. **設定 config.json**：
+```bash
+cp config.json.example config.json
+nano config.json
+```
+
+修改內容：
+```json
+{
+  "host": "你的TWS IP",
+  "port": 7496,
+  "client_id": 1,
+  "readonly": false
+}
+```
+
+### OpenClaw 內使用
+
+在 Discord 中直接使用指令：
+
+| 指令 | 功能 |
+|------|------|
+| `查股價 NVDA` | 查詢股價 |
+| `看 NVDA 期權` | 查看期權鏈 |
+| `wheel NVDA` | Wheel 建議 |
+| `持倉` | 查看持倉 |
+| `帳戶` | 帳戶資訊 |
+| `ONDS 收益` | 統計收益 |
+
+### 範例對話
+
+```
+用戶: wheel NVDA
+機器人: **NVDA** Wheel 建議:
+        • 動作: **SELL_PUT**
+        • 現價 $195.56，賣出 175 Put，收 $63/合約
+
+用戶: 持倉
+機器人: **帳戶資訊:**
+        • 淨資產: $1,978.10
+        • 現金: $2,171.80
+        
+        目前無股票持倉
+```
+
 ## 資料來源
 
 | 資料類型 | 主要來源 | 備援來源 |
