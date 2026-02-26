@@ -23,15 +23,64 @@ logger = logging.getLogger('openclaw.wheel')
 # Config path
 CONFIG_PATH = Path(__file__).parent / 'config.json'
 
+# Singleton connection - 重複使用同一個 client
+_ib_instance = None
+_ib_config = None
+
+
+def _get_shared_ib(config_path: str = None) -> IB:
+    """取得共享的 IB 連線"""
+    global _ib_instance, _ib_config
+    
+    config_file = Path(config_path) if config_path else CONFIG_PATH
+    if config_file.exists():
+        with open(config_file) as f:
+            config = json.load(f)
+    else:
+        config = {'host': '127.0.0.1', 'port': 7497, 'client_id': 1, 'readonly': True}
+    
+    # 如果 config 沒變，且連線還在，就重用
+    if _ib_instance and _ib_instance.isConnected():
+        if _ib_config == config:
+            return _ib_instance
+    
+    # 建立新連線
+    _ib_config = config
+    _ib_instance = IB()
+    
+    # 抑制 logs
+    logging.getLogger('ib_async').setLevel(logging.ERROR)
+    
+    try:
+        _ib_instance.connect(
+            config['host'],
+            config['port'],
+            clientId=config.get('client_id', 1),
+            readonly=config.get('readonly', True)
+        )
+    except Exception as e:
+        logger.error(f"連接失敗: {e}")
+        _ib_instance = None
+    
+    return _ib_instance
+
 
 class IBWheel:
     """Interactive Brokers Wheel Strategy 助手"""
     
-    def __init__(self, config_path: str = None):
+    def __init__(self, config_path: str = None, reuse_connection: bool = True):
         self.config_path = Path(config_path) if config_path else CONFIG_PATH
         self.config = self._load_config()
-        self.ib = IB()
-        self._connected = False
+        self._reuse = reuse_connection
+        
+        if reuse_connection:
+            # 使用共享連線
+            self.ib = _get_shared_ib(str(self.config_path))
+            self._connected = self.ib.isConnected() if self.ib else False
+        else:
+            # 每次建立新連線
+            self.ib = IB()
+            self._connected = False
         
     def _load_config(self) -> dict:
         """載入配置"""
@@ -47,29 +96,34 @@ class IBWheel:
     
     def _ensure_connection(self) -> bool:
         """確保連接"""
-        if self._connected and self.ib.isConnected():
-            return True
-        
-        try:
-            # 抑制 ib_async logs
-            logging.getLogger('ib_async').setLevel(logging.ERROR)
-            
-            client_id = self.config.get('client_id', 1) + int(time.time() % 1000)
-            self.ib.connect(
-                self.config['host'],
-                self.config['port'],
-                clientId=client_id,
-                readonly=self.config.get('readonly', True)
-            )
-            self._connected = self.ib.isConnected()
+        if self._reuse:
+            # 使用共享連線
+            self.ib = _get_shared_ib(str(self.config_path))
+            self._connected = self.ib.isConnected() if self.ib else False
             return self._connected
-        except Exception as e:
-            logger.error(f"連接失敗: {e}")
-            return False
+        else:
+            # 自己的連線
+            if self._connected and self.ib.isConnected():
+                return True
+            
+            try:
+                logging.getLogger('ib_async').setLevel(logging.ERROR)
+                client_id = self.config.get('client_id', 1) + int(time.time() % 1000)
+                self.ib.connect(
+                    self.config['host'],
+                    self.config['port'],
+                    clientId=client_id,
+                    readonly=self.config.get('readonly', True)
+                )
+                self._connected = self.ib.isConnected()
+                return self._connected
+            except Exception as e:
+                logger.error(f"連接失敗: {e}")
+                return False
     
     def disconnect(self):
-        """斷開連接"""
-        if self._connected:
+        """斷開連接（共享模式下不真的斷開）"""
+        if not self._reuse and self._connected:
             self.ib.disconnect()
             self._connected = False
     
