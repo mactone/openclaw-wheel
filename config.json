@@ -2,6 +2,6 @@
   "host": "192.168.0.41",
   "port": 4001,
   "client_id": 1,
-  "readonly": true,
+  "readonly": false,
   "comment": "IB Gateway on notebook - paper trading"
 }
